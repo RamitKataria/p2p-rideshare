@@ -7,10 +7,8 @@ import server.ServerInfo;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
-import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
 
 public class centralServer extends NioServer{
@@ -30,8 +28,17 @@ public class centralServer extends NioServer{
         if(!addressMap.containsKey(hostName))addressMap.put(String.valueOf(hostName),clientInfo);
     }
 
+    private void heartbeat(){
+
+    }
+    // A heartbeat function to remove any inactive users
+    private void removeIPAddress(){
+
+    }
+
     private void read(SocketChannel clientChannel, ByteBuffer buffer){
         while(buffer.hasRemaining()){
+            // Read the fixed size bytes which indicates the type of request
             byte b = buffer.get();
 
             switch(b){
@@ -52,9 +59,14 @@ public class centralServer extends NioServer{
                 }
                 // Handle heartbeat messages
                 case 0x1B: {
-
-
-
+                    InetAddress clientAddress = clientChannel.socket().getInetAddress();
+                    int clientPort = buffer.getInt();
+                    StringBuilder clientName = new StringBuilder();
+                    while(buffer.hasRemaining()){
+                        clientName.append(buffer.getChar());
+                    }
+                    // Check if the rider exists in the map
+                    ServerInfo clientInfo = new ServerInfo(clientAddress,clientPort);
 
 
 
@@ -82,7 +94,6 @@ public class centralServer extends NioServer{
             }
         }
     }
-
 
     public static void main(String args[])
     {
