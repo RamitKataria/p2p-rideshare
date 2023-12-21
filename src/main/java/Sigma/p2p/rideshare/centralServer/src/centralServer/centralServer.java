@@ -14,6 +14,10 @@ import java.util.Map;
 public class centralServer extends NioServer{
     private HashMap<String,ServerInfo> addressMap;
 
+    // Time out frequency for client server
+    public static int Default_timeout_period = 5;
+    public int Default_timeout_counter = 3;
+
     public centralServer(InetAddress hostAddress, int port, EchoWorker worker) throws IOException{
         // Call the superclass constructor of NioServer
         super(hostAddress,port,worker);
@@ -28,11 +32,22 @@ public class centralServer extends NioServer{
         if(!addressMap.containsKey(hostName))addressMap.put(String.valueOf(hostName),clientInfo);
     }
 
-    private void heartbeat(){
-
+    private boolean heartbeat() {
+        if(!addressMap.isEmpty()) {
+            for (Map.Entry<String, ServerInfo> entry : addressMap.entrySet()) {
+                String serverName = entry.getKey();
+                ServerInfo serverInfo = entry.getValue();
+                if (serverInfo.getHeartbeats() > Default_timeout_counter) {
+                    addressMap.remove(serverName);
+                }else{
+                    addressMap.get(serverName).incrementHeartbeats();
+                }
+            }
+        }
+        return true;
     }
-    // A heartbeat function to remove any inactive users
-    private void removeIPAddress(){
+
+    private void calculateDistance(InetAddress ipAddress1,InetAddress ipAddress2){
 
     }
 
@@ -50,9 +65,9 @@ public class centralServer extends NioServer{
 
                     // Loop through the active Ip map
                     for(Map.Entry<String,ServerInfo> entry : addressMap.entrySet()){
-                        ServerInfo rider = entry.getValue();
-                        bufferout.put(rider.getAddress().getAddress());
-                        bufferout.putInt(rider.getPort());
+                        ServerInfo driverIP = entry.getValue();
+                        bufferout.put(driverIP.getIPAddress().getAddress());
+                        bufferout.putInt(driverIP.getPort());
                     }
                     this.send(clientChannel, bufferout.array());
                     break;
@@ -67,9 +82,12 @@ public class centralServer extends NioServer{
                     }
                     // Check if the rider exists in the map
                     ServerInfo clientInfo = new ServerInfo(clientAddress,clientPort);
+                    if(!addressMap.containsKey(clientName.toString())){
+                        break;
+                    }
 
-
-
+                    // Reset heartbeat counter
+                    addressMap.get(clientName.toString()).resetHeartbeats();
                     break;
                 }
                 // Save and acknowledge a new IP address
@@ -87,7 +105,6 @@ public class centralServer extends NioServer{
 
                     // possibility send acknowledgement message
                     ByteBuffer out = ByteBuffer.allocate(1024);
-
                     this.send(clientChannel, out.array());
                     break;
                 }
@@ -100,9 +117,18 @@ public class centralServer extends NioServer{
         try {
             EchoWorker worker = new EchoWorker();
             new Thread(worker).start();
-            new Thread(new centralServer(null,4000, worker)).start();
+            centralServer server = new centralServer(null,4000, worker);
+            new Thread(server).start();
+
+            while(true){
+                if(server.heartbeat()){
+                    Thread.sleep(Default_timeout_period * 1000L);
+                }
+            }
         } catch (IOException e) {
             e.printStackTrace();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
         }
     }
 }
